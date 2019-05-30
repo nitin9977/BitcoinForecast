@@ -1,4 +1,5 @@
-import util
+import util, const
+import predict
 import time
 import argparse
 import numpy as np
@@ -7,10 +8,12 @@ from   sys import argv,exit
 from   keras.models import Sequential
 from   keras.layers import Dense,Dropout,GRU,Reshape
 from   keras.layers.normalization import BatchNormalization
+import sqlite3
+conn = sqlite3.connect('data.db')
 
 file_name = 'dataset.csv'
 net = None
-wait_time = 530
+wait_time = const.wait_time
 
 def buildNet(w_init="glorot_uniform",act="tanh"):
     global net
@@ -35,7 +38,7 @@ def chart(real,predicted,show=True):
     plt.plot(real,color='g')
     plt.plot(predicted,color='r')
     plt.ylabel('BTC/USD')
-    plt.xlabel("9Minutes")
+    plt.xlabel(wait_time)
     plt.savefig("chart.png")
     if show:plt.show()
 
@@ -44,12 +47,17 @@ def predictFuture(m1,m2,old_pred,writeToFile=False):
     actual = np.array(util.reduceCurrent(actual)).reshape(1,12)
     pred = util.augmentValue(net.predict(actual)[0],m1,m2)
     pred = float(int(pred[0]*100)/100)
+    cex = util.getCEXData()
+    slope,nrmse = predict.getslope(False)
     if writeToFile:
         f = open("results","a")
-        f.write("[{}] Actual:{}$ Last Prediction:{}$ Next 9m:{}$\n".format(time.strftime("%H:%M:%S"),latest_p,old_pred,pred))
+        f.write("[{}] Actual:{}$ Last Prediction:{}$ Next {}sec:{}$".format(time.strftime("%H:%M:%S"),latest_p,old_pred,wait_time,pred))
         f.close()
 
-    print("[{}] Actual:{}$ Last Prediction:{}$ Next 9m:{}$".format(time.strftime("%H:%M:%S"),latest_p,old_pred,pred))
+    c = conn.cursor()
+    c.execute("INSERT INTO predict(actual,last,target,cex_ask,slope,nrmse) VALUES (?,?,?,?,?,?)",(latest_p,old_pred,pred,cex["ask"],slope,nrmse))
+    conn.commit()
+    print("[{}] Actual:{}$ Last Prediction:{}$ Next {}sec:{}$ Slope:{}$ NRMSE:{}$\n".format(time.strftime("%H:%M:%S"),latest_p,old_pred,wait_time,pred,slope,nrmse))
     return latest_p,pred
 
 if __name__ == '__main__':
@@ -60,6 +68,18 @@ if __name__ == '__main__':
     parser.add_argument('-iterations',type=int,help='-iteration number of epoches')
     parser.add_argument('-finetune',type=str,help='-finetune base-model path')
     args = parser.parse_args()
+
+    if const.run:
+        args.run = "dataset.csv"
+    elif const.train:
+        args.train = "dataset.csv"
+    else:
+        print("Error either run or train must be True, exiting\n")
+        exit(0)
+    args.model=const.model
+    args.iterations = const.iterations
+    args.finetune = const.finetune
+
     print(args)
 
 
@@ -89,19 +109,20 @@ if __name__ == '__main__':
             preds.append(predicted)
             reals.append(real)
 
-        while True:
-            try:
-                real,hip = predictFuture(m1,m2,hip,writeToFile=True)
-                reals.append(real)
-                preds.append(hip)
-                time.sleep(wait_time)
-            except KeyboardInterrupt:
-                ### PLOTTING
-                chart(reals,preds,show=False)
-                print("Chart saved!")
-                s = input("Type yes to close the program: ")
-                if s.lower() == "yes":break
-                print("Resuming...")
+        while(args.iterations > 0):
+            # try:
+            real,hip = predictFuture(m1,m2,hip,writeToFile=True)
+            reals.append(real)
+            preds.append(hip)
+            time.sleep(wait_time)
+            args.iterations-=1
+            # except KeyboardInterrupt:
+        ### PLOTTING
+        chart(reals,preds,show=False)
+        print("Chart saved!")
+        # s = input("Type yes to close the program: ")
+        # if s.lower() == "yes":break
+        # print("Resuming...")
 
         print("Closing..")
 
@@ -114,7 +135,7 @@ if __name__ == '__main__':
         #Training dnn
         print("training...")
         el = len(data)-10     #Last ten elements are for testing
-        net.fit(data[:el],labels[:el],epochs=epochs,batch_size=300)
+        net.fit(np.array(data[:el]),np.array(labels[:el]),epochs=epochs,batch_size=300)
         print("trained!\nSaving...",end="")
         net.save_weights("model.h5")
         print("saved!")
