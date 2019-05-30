@@ -8,6 +8,7 @@ import requests
 import time
 
 f_name = input("dataset name:")
+#f_name = "dataset.csv"
 f = open(f_name,"a")
 keys = ["price_usd","24h_volume_usd","market_cap_usd","available_supply","total_supply","percent_change_1h","percent_change_24h","percent_change_7d"]
 vals = [0]*len(keys)
@@ -23,9 +24,14 @@ while True:
        vals[indx] = data[d]
   for val in vals:
        f.write(val+",")
-      
+       # print(val + ",")
+
   f.write("{},{},".format(bstamp["volume"],bstamp["vwap"]))
+  # print("{},{},".format(bstamp["volume"],bstamp["vwap"]))
+
   f.write("{},{},{}".format(bkc["USD"]["sell"],bkc["USD"]["buy"],bkc["USD"]["15m"]))
+  print("{},{},{}".format(bkc["USD"]["sell"],bkc["USD"]["buy"],bkc["USD"]["15m"]))
   f.write("\n")
   f.flush()
-  time.sleep(9*60)
+  # time.sleep(9*60)
+  time.sleep(2)
