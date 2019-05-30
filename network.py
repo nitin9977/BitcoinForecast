@@ -51,7 +51,7 @@ def predictFuture(m1,m2,old_pred,writeToFile=False):
     slope,nrmse = predict.getslope(False)
     if writeToFile:
         f = open("results","a")
-        f.write("[{}] Actual:{}$ Last Prediction:{}$ Next {}sec:{}$".format(time.strftime("%H:%M:%S"),latest_p,old_pred,wait_time,pred))
+        f.write("[{}] Actual:{}$ Last Prediction:{}$ Next {}sec:{}$\n".format(time.strftime("%H:%M:%S"),latest_p,old_pred,wait_time,pred))
         f.close()
 
     c = conn.cursor()
